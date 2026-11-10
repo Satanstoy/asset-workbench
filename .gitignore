@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+/frontend/node_modules/
+/frontend/.next/
+/frontend/*.tsbuildinfo
+/frontend/test-results/
+/frontend/playwright-report/
+/backend/target/
+/backend/data/
+__pycache__/
+.pytest_cache/
+/work/
+/frontend/next-env.d.ts

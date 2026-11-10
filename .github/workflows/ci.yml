@@ -1,0 +1,100 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  verification:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root-test
+          MYSQL_DATABASE: workbench_spec_test
+          MYSQL_USER: workbench
+          MYSQL_PASSWORD: workbench-test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --protocol=TCP -h 127.0.0.1 --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: '3306'
+      TEST_DB_USER: workbench
+      TEST_DB_PASSWORD: workbench-test
+      TEST_DB_NAME: workbench_spec_test
+      TEST_RESTART_DB_NAME: workbench_restart_test
+      API_BASE_URL: http://127.0.0.1:8080
+      BACKEND_URL: http://127.0.0.1:8080
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-test.txt
+      - name: Prepare isolated test databases
+        env:
+          MYSQL_CONTAINER: ${{ job.services.mysql.id }}
+        run: |
+          docker exec -i -e MYSQL_PWD=root-test "$MYSQL_CONTAINER" mysql -uroot <<'SQL'
+          CREATE DATABASE workbench_http_test CHARACTER SET utf8mb4;
+          CREATE DATABASE workbench_restart_test CHARACTER SET utf8mb4;
+          GRANT ALL ON workbench_http_test.* TO 'workbench'@'%';
+          GRANT ALL ON workbench_restart_test.* TO 'workbench'@'%';
+          SET GLOBAL log_bin_trust_function_creators = 1;
+          SQL
+      - name: Java tests and build
+        working-directory: backend
+        env:
+          TEST_DB_URL: jdbc:mysql://127.0.0.1:3306/workbench_http_test
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Frontend checks and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm run build
+          npx playwright install --with-deps chromium
+      - run: python -m pip install -r backend/requirements-test.txt
+      - name: Run pytest and Playwright
+        env:
+          DB_URL: jdbc:mysql://127.0.0.1:3306/workbench_spec_test
+          DB_USER: workbench
+          DB_PASSWORD: workbench-test
+          SERVER_ADDRESS: 127.0.0.1
+          SIMULATION_ENABLED: 'true'
+          PLAYWRIGHT_REAL_API: '1'
+        run: |
+          export TEST_ASSETS_DIRECTORY="$RUNNER_TEMP/api-assets"
+          export BACKEND_JAR="$GITHUB_WORKSPACE/backend/target/asset-workbench.jar"
+          ASSETS_DIRECTORY="$TEST_ASSETS_DIRECTORY" java -jar "$BACKEND_JAR" > "$RUNNER_TEMP/backend.log" 2>&1 &
+          backend_pid=$!
+          trap 'kill "$backend_pid" 2>/dev/null || true' EXIT
+          for _ in {1..40}; do
+            if curl --silent --fail "$API_BASE_URL/api/health"; then break; fi
+            if ! kill -0 "$backend_pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --show-error --fail "$API_BASE_URL/api/health"
+          python -m pytest -q backend/tests
+          npm --prefix frontend test
+      - name: Show backend log on failure
+        if: failure()
+        run: |
+          if test -f "$RUNNER_TEMP/backend.log"; then tail -100 "$RUNNER_TEMP/backend.log"; fi
