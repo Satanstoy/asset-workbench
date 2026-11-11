@@ -14,8 +14,10 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -23,12 +25,14 @@ import java.util.function.Supplier;
 class TaskWorker {
     private final TaskMapper mapper;
     private final Path assetsDirectory;
+    private final CollageResults collages;
     private final TaskWorkflow workflow = new TaskWorkflow();
     private volatile boolean ready;
 
-    TaskWorker(TaskMapper mapper, @Value("${workbench.assets-directory}") Path assetsDirectory) {
+    TaskWorker(TaskMapper mapper, @Value("${workbench.assets-directory}") Path assetsDirectory, CollageResults collages) {
         this.mapper = mapper;
         this.assetsDirectory = assetsDirectory.toAbsolutePath().normalize();
+        this.collages = collages;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -45,30 +49,50 @@ class TaskWorker {
         TaskRow task = retryRead(mapper::firstPending);
         if (task != null) {
             try {
-                workflow.execute(stage -> perform(task, stage), update -> writeUpdate(task.id(), update));
+                var execution = new Execution(task);
+                workflow.execute(execution::perform, update -> writeUpdate(task.id(), update));
             } catch (TaskEnded ended) {
                 // The durable terminal state wins if the current execution has been superseded.
             }
         }
     }
 
-    private String perform(TaskRow task, Stage stage) {
-        pause(task.stageDelayMs());
-        if (stage == task.failAtStage()) {
-            throw new StageFailure("SIMULATED_FAILURE", "此制作阶段模拟失败");
+    private final class Execution {
+        private final TaskRow task;
+        private List<Path> inputs;
+        private BufferedImage collage;
+
+        private Execution(TaskRow task) {
+            this.task = task;
         }
-        if (stage == Stage.CHECK_ASSETS) {
-            for (String filename : retryRead(() -> mapper.inputFiles(task.id()))) {
-                Path image = assetsDirectory.resolve(filename).normalize();
-                if (!image.startsWith(assetsDirectory) || !Files.isRegularFile(image) || !Files.isReadable(image)) {
-                    throw new StageFailure("ASSET_UNREADABLE", "制作素材不可用");
+
+        String perform(Stage stage) {
+            pause(task.stageDelayMs());
+            if (stage == task.failAtStage()) {
+                throw new StageFailure("SIMULATED_FAILURE", "此制作阶段模拟失败");
+            }
+            if (stage == Stage.CHECK_ASSETS) {
+                inputs = retryRead(() -> mapper.inputFiles(task.id())).stream()
+                        .map(filename -> assetsDirectory.resolve(filename).normalize()).toList();
+                for (Path image : inputs) {
+                    if (!image.startsWith(assetsDirectory) || !Files.isRegularFile(image) || !Files.isReadable(image)) {
+                        throw new StageFailure("ASSET_UNREADABLE", "制作素材不可用");
+                    }
                 }
             }
+            if (stage == Stage.GENERATE && "collage".equals(task.templateId())) {
+                collage = collages.compose(inputs);
+            }
+            if (stage == Stage.FINALIZE) {
+                if (collage != null) {
+                    return collages.publish(task.id(), collage);
+                }
+                if (DemoImageController.resource(task.resultImage()) != null) {
+                    return "/api/demo-images/" + task.resultImage();
+                }
+            }
+            return null;
         }
-        if (stage == Stage.FINALIZE && DemoImageController.resource(task.resultImage()) != null) {
-            return "/api/demo-images/" + task.resultImage();
-        }
-        return null;
     }
 
     private void writeUpdate(long taskId, Update update) {

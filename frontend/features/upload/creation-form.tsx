@@ -142,7 +142,9 @@ export function CreationForm({ template, onAccepted }: { template: Template; onA
           </div>
         ))}
       </div>
-      <p className="simulation-note">模拟制作完成后展示模板示例图</p>
+      <p className="simulation-note">{template.id === "collage"
+        ? "素材 1 放在左侧，素材 2 放在右侧"
+        : "模拟制作完成后展示模板示例图"}</p>
       <button className="primary" disabled={!ready || submitting} type="submit">
         {submitting ? "提交中…" : "开始制作"}
       </button>

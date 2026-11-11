@@ -59,7 +59,7 @@ class TaskWorkerRecoveryTest {
                     return 1;
                 });
 
-        TaskWorker worker = new TaskWorker(mapper, assets);
+        TaskWorker worker = new TaskWorker(mapper, assets, new CollageResults(assets));
         worker.start();
         worker.runNext();
 

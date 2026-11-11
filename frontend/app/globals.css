@@ -116,3 +116,15 @@ button:disabled { cursor: default; opacity: .65; }
 @media (prefers-reduced-motion: reduce) {
   .template-card .template-image { transition: none; }
 }
+
+.account-trigger-label { padding-left: .55rem; border-left: 1px solid #41414b; }
+.account-dialog { width: min(580px, 100% - 2rem); padding: clamp(1.15rem, 4vw, 2rem); }
+.account-profile { display: block; padding: 1.2rem; }
+.account-profile-heading { display: flex; align-items: center; gap: 1rem; }
+.account-profile-heading p { color: var(--muted); margin: .2rem 0 0; }
+.account-details { border-top: 1px solid #41414b; margin: 1rem 0 0; padding-top: .85rem; }
+.account-details > div { display: flex; justify-content: space-between; gap: .75rem; padding: .3rem 0; }
+.account-details dt { color: var(--muted); }
+.account-details dd { margin: 0; }
+.account-history { display: flex; justify-content: space-between; margin-top: .9rem; padding: .85rem 1rem; border: 1px solid #41414b; border-radius: .75rem; text-decoration: none; }
+.account-history:hover { border-color: var(--accent); }

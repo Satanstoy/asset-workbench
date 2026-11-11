@@ -98,7 +98,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           <button className="account-trigger" ref={accountButton} type="button" aria-label="账户设置"
             onClick={openAccount}>
             <span className="account-avatar" aria-hidden="true">{initial}</span>
-            {state.busy ? "正在确认身份…" : state.user?.displayName ?? "选择演示身份"}
+            <span>{state.busy ? "正在确认身份…" : state.user?.displayName ?? "访客"}</span>
+            <span className="account-trigger-label">账户设置</span>
           </button>
         </div>
         {state.error && <p className="identity-error" role="status">{state.error}</p>}
@@ -109,9 +110,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           <h2 id="account-title">账户设置</h2>
           <button type="button" aria-label="关闭账户设置" onClick={() => accountDialog.current?.close()}>×</button>
         </div>
-        <div className="account-profile" role="status">
-          <span className="account-avatar" aria-hidden="true">{initial}</span>
-          <strong>{state.busy ? "正在确认身份…" : state.user ? `当前：${state.user.displayName}` : "尚未选择演示身份"}</strong>
+        <div className="account-profile">
+          <div className="account-profile-heading" role="status">
+            <span className="account-avatar" aria-hidden="true">{initial}</span>
+            <div>
+              <strong>{state.busy ? "正在确认身份…" : state.user ? `当前：${state.user.displayName}` : "尚未选择演示身份"}</strong>
+              <p>素材制作工作台</p>
+            </div>
+          </div>
+          {state.user && <dl className="account-details">
+            <div><dt>账户 ID</dt><dd>{state.user.id}</dd></div>
+            <div><dt>身份类型</dt><dd>演示账户</dd></div>
+          </dl>}
         </div>
         <fieldset className="account-options" disabled={state.busy}>
           <legend>选择演示身份</legend>
@@ -121,6 +131,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               onClick={() => void choose(`demo-${letter.toLowerCase()}`)}>演示用户 {letter}</button>
           ))}
         </fieldset>
+        {state.user && <Link className="account-history" href="/history" onClick={() => accountDialog.current?.close()}>
+          查看个人历史 <span aria-hidden="true">›</span>
+        </Link>}
         {state.error && <p className="error" role="status">{state.error}</p>}
       </dialog>
       {children}

@@ -5,8 +5,10 @@ import com.assetworkbench.task.TaskMapper.TaskResponse;
 import com.assetworkbench.task.TaskWorkflow.Stage;
 import com.assetworkbench.web.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,15 +18,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.file.Files;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/tasks")
 class TaskController {
     private final TaskService tasks;
+    private final CollageResults collages;
 
-    TaskController(TaskService tasks) {
+    TaskController(TaskService tasks, CollageResults collages) {
         this.tasks = tasks;
+        this.collages = collages;
     }
 
     @PostMapping
@@ -37,13 +42,29 @@ class TaskController {
     @GetMapping("/{id}")
     ResponseEntity<TaskResponse> get(@PathVariable String id, HttpServletRequest request) {
         String ownerId = DemoSessionController.requireUserId(request);
-        long taskId;
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tasks.find(ownerId, taskId(id)));
+    }
+
+    @GetMapping("/{id}/result")
+    ResponseEntity<FileSystemResource> result(@PathVariable String id, HttpServletRequest request) {
+        String ownerId = DemoSessionController.requireUserId(request);
+        long taskId = taskId(id);
+        TaskResponse task = tasks.find(ownerId, taskId);
+        var file = collages.file(taskId);
+        if (!"SUCCEEDED".equals(task.status()) || !CollageResults.url(taskId).equals(task.resultUrl())
+                || !Files.isRegularFile(file) || !Files.isReadable(file)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "RESULT_NOT_FOUND", "找不到制作结果");
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(MediaType.IMAGE_PNG)
+                .body(new FileSystemResource(file));
+    }
+
+    private static long taskId(String id) {
         try {
-            taskId = Long.parseLong(id);
+            return Long.parseLong(id);
         } catch (NumberFormatException invalidId) {
             throw notFound();
         }
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tasks.find(ownerId, taskId));
     }
 
     @GetMapping

@@ -53,7 +53,9 @@ export function TaskCards({ entries, retry, reconcile }: {
             {new Date(task.createdAt).toLocaleString("zh-CN")}
           </time></p>
           {task.stage && <p className="task-meta">制作阶段 · {stages[task.stage]}</p>}
-          {task.status === "SUCCEEDED" && <p className="subtle">模拟制作 · 示例结果</p>}
+          {task.status === "SUCCEEDED" && <p className="subtle">
+            {task.resultUrl === `/api/tasks/${task.id}/result` ? "上传素材拼贴" : "模拟制作 · 示例结果"}
+          </p>}
           {queryError && <p className="notice">暂时无法更新进度 <button type="button" onClick={() => retry(task.id)}>立即重试</button></p>}
           {unavailable && <p className="notice">任务暂时不可查 <button type="button" onClick={() => reconcile(task.id)}>重新核对</button></p>}
         </article>

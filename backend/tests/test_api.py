@@ -292,3 +292,26 @@ def test_missing_result_image_fails_only_its_task(client_factory, single, db):
         db("DELETE task_inputs FROM task_inputs JOIN tasks ON task_inputs.task_id = tasks.id WHERE template_id = %s", template)
         db("DELETE FROM tasks WHERE template_id = %s", template)
         db("DELETE FROM templates WHERE id = %s", template)
+
+
+def test_collage_result_is_persisted_and_private(client_factory, db):
+    owner = client_factory("demo-a")
+    other = client_factory("demo-b")
+    guest = client_factory()
+    left = expect(upload(owner, "collage"), 201)["id"]
+    right = expect(upload(owner, "collage"), 201)["id"]
+    task = expect(submit(owner, "collage", [left, right]), 202)
+    completed = await_task(owner, task["id"], "SUCCEEDED", "FINALIZE")
+    url = f"/api/tasks/{task['id']}/result"
+    assert completed["resultUrl"] == url
+    row, = db("SELECT result_url FROM tasks WHERE id = %s", int(task["id"]))
+    assert row["result_url"] == url
+    result = owner.request("GET", url)
+    assert result.status_code == 200 and result.headers["Content-Type"] == "image/png"
+    assert "no-store" in result.headers["Cache-Control"]
+    assert result.content.startswith(b"\x89PNG\r\n\x1a\n")
+    expect_error(other.request("GET", url), 404)
+    expect_error(guest.request("GET", url), 401)
+    failed = expect(submit(owner, "collage", [left, right], failure="FINALIZE"), 202)
+    await_task(owner, failed["id"], "FAILED", "FINALIZE")
+    expect_error(owner.request("GET", f"/api/tasks/{failed['id']}/result"), 404)
