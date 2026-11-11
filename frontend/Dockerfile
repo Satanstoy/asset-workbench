@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit
 COPY . .
 ARG BACKEND_URL=http://backend:8080
 ENV BACKEND_URL=$BACKEND_URL

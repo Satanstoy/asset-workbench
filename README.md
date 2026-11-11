@@ -105,6 +105,8 @@ curl --fail-with-body -sS -b "$demo_dir/cookies" "$base/api/tasks"
 
 GitHub Actions 在 push 和 pull request 中启动独立 MySQL，运行 Java 测试、pytest、Playwright 及前端 lint、类型检查和构建。
 
+本地验收通过 11 项 Java 测试、14 项 pytest 和 10 项 Playwright。三服务容器验收使用 Maven 打包的 Java JAR，浏览器闭环和 MySQL 记录检查均通过。独立运行 `docker compose up --build` 时，镜像和 npm 依赖下载遇到连接中断，源码构建验收待重跑。
+
 ## 部署、回滚与范围
 
 部署时记录验收 commit，准备对应的配置，运行 `docker compose up -d --build`，再检查 `/api/health` 和一次制作闭环。回滚前备份 MySQL 和上传卷，切换到已验证的旧 commit 后重新构建启动。若版本间库表有变动，按相应版本的数据库备份恢复。 `docker compose down` 停止服务并保留数据。需要从空数据演示时，针对专用演示环境执行 `docker compose down -v`。
