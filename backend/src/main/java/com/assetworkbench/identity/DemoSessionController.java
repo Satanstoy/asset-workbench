@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,12 +34,26 @@ public class DemoSessionController {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_IDENTITY", "请选择演示身份 A 或 B");
         }
 
-        HttpSession previous = request.getSession(false);
-        if (previous != null) {
-            previous.invalidate();
-        }
+        invalidate(request);
         request.getSession(true).setAttribute(USER, user);
         return response(user);
+    }
+
+    @DeleteMapping
+    ResponseEntity<SessionResponse> logout(HttpServletRequest request) {
+        invalidate(request);
+        return response(null);
+    }
+
+    private void invalidate(HttpServletRequest request) {
+        HttpSession previous = request.getSession(false);
+        if (previous != null) {
+            try {
+                previous.invalidate();
+            } catch (IllegalStateException alreadyInvalidated) {
+                // Concurrent logout or identity switch already invalidated this session.
+            }
+        }
     }
 
     public static String requireUserId(HttpServletRequest request) {

@@ -13,7 +13,7 @@ import { useResource } from "@/lib/use-resource";
 import { categoryQuery } from "./template-list";
 
 function CreationArea({ template, overview }: { template: Template; overview: ReactNode }) {
-  const { entries, add, listState, retry, reload, reconcile } = useTasks(template.id);
+  const { entries, add, listState, retry, reload, reconcile, remove } = useTasks(template.id);
   return (
     <div className="studio">
       <div className="studio-sidebar">
@@ -23,12 +23,15 @@ function CreationArea({ template, overview }: { template: Template; overview: Re
       <section className="results" aria-label="制作任务">
         <div className="section-heading">
           <h2>制作任务</h2>
-          <Link href="/history">查看个人历史</Link>
+          <div className="inline-actions">
+            <Link href="/history">查看个人历史</Link>
+            <button type="button" disabled={listState === "loading"} onClick={reload}>刷新历史</button>
+          </div>
         </div>
         {listState === "loading" && <p className="notice" role="status">正在加载制作任务…</p>}
         {listState === "error" && <p className="notice error">制作任务加载失败 <button type="button" onClick={reload}>重试</button></p>}
         {listState === "ready" && entries.length === 0 && <p className="notice">这个模板暂无制作任务</p>}
-        <TaskCards entries={entries} retry={(id) => void retry(id)} reconcile={reconcile} />
+        <TaskCards entries={entries} retry={(id) => void retry(id)} reconcile={reconcile} remove={remove} />
       </section>
     </div>
   );

@@ -32,14 +32,23 @@ interface TaskMapper {
     @Insert("INSERT INTO task_inputs (task_id, slot, asset_id) VALUES (#{taskId}, #{slot}, #{assetId})")
     void insertInput(@Param("taskId") long taskId, @Param("slot") int slot, @Param("assetId") String assetId);
 
-    @Select(TASK_COLUMNS + " WHERE tasks.id = #{id} AND tasks.owner_id = #{ownerId}")
+    String VISIBLE = " AND NOT EXISTS (SELECT 1 FROM deleted_tasks WHERE task_id = tasks.id)";
+
+    @Select(TASK_COLUMNS + " WHERE tasks.id = #{id} AND tasks.owner_id = #{ownerId}" + VISIBLE)
     TaskRow ownedTask(@Param("id") long id, @Param("ownerId") String ownerId);
+
+    @Insert("""
+            INSERT INTO deleted_tasks (task_id) VALUES (#{id})
+            ON DUPLICATE KEY UPDATE task_id = task_id
+            """)
+    void markDeleted(long id);
 
     @Select("SELECT status, stage, result_url, failure_code, failure_message FROM tasks WHERE id = #{id}")
     Progress progress(long id);
 
     @Select("<script>" + TASK_COLUMNS + """
             WHERE tasks.owner_id = #{ownerId}
+            AND NOT EXISTS (SELECT 1 FROM deleted_tasks WHERE task_id = tasks.id)
             <if test="templateId != null">AND tasks.template_id = #{templateId}</if>
             <if test="activeOnly">AND tasks.status IN ('PENDING', 'PROCESSING')</if>
             ORDER BY tasks.id DESC

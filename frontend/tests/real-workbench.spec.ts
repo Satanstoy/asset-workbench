@@ -131,3 +131,51 @@ test("双图成品使用两张上传图，且只能由所属账户预览", async
   await expect(card).toHaveCount(0);
   expect((await page.request.get(url)).status()).toBe(404);
 });
+
+test("历史可手动刷新并确认删除，退出后可重新选择身份", async ({ page }) => {
+  await page.goto("/history");
+  const settings = page.getByRole("button", { name: "账户设置" });
+  await settings.click();
+  const account = page.getByRole("dialog", { name: "账户设置" });
+  await account.getByRole("button", { name: "演示用户 A" }).click();
+  await expect(account).toContainText("当前：演示用户 A");
+  await account.getByRole("button", { name: "关闭账户设置" }).click();
+  const refresh = page.getByRole("button", { name: "刷新历史" });
+  await expect(refresh).toBeEnabled();
+  const file = await page.request.get("/api/demo-images/postcard-cover.png");
+  const asset = await page.request.post("/api/assets", { multipart: {
+    templateId: "postcard",
+    file: { name: "postcard.png", mimeType: "image/png", buffer: await file.body() },
+  } });
+  expect(asset.status()).toBe(201);
+  const submitted = await page.request.post("/api/tasks", { data: {
+    templateId: "postcard", assetIds: [(await asset.json()).id], simulation: { stageDelayMs: 0 },
+  } });
+  expect(submitted.status()).toBe(202);
+  const { id } = await submitted.json();
+  const card = page.getByRole("article", { name: `任务 ${id}` });
+  await expect(card).toHaveCount(0);
+  await refresh.click();
+  await expect(card).toContainText("成功", { timeout: 10_000 });
+  await card.getByRole("button", { name: `删除任务 ${id}` }).click();
+  const confirmation = page.getByRole("dialog", { name: "删除任务" });
+  await confirmation.getByRole("button", { name: "取消" }).click();
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: `删除任务 ${id}` }).click();
+  await confirmation.getByRole("button", { name: "确认删除" }).click();
+  await expect(card).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "刷新历史" })).toBeEnabled();
+  await expect(card).toHaveCount(0);
+  await settings.click();
+  await account.getByRole("button", { name: "退出演示身份" }).click();
+  await expect(account).toContainText("尚未选择演示身份");
+  expect((await page.request.get("/api/tasks")).status()).toBe(401);
+  await account.getByRole("button", { name: "关闭账户设置" }).click();
+  await expect(page.getByText("请选择演示身份后查看个人历史")).toBeVisible();
+  await settings.click();
+  await account.getByRole("button", { name: "演示用户 A" }).click();
+  await expect(account).toContainText("当前：演示用户 A");
+  await account.getByRole("button", { name: "关闭账户设置" }).click();
+  await expect(page.getByRole("button", { name: "刷新历史" })).toBeEnabled();
+});

@@ -128,3 +128,5 @@ button:disabled { cursor: default; opacity: .65; }
 .account-details dd { margin: 0; }
 .account-history { display: flex; justify-content: space-between; margin-top: .9rem; padding: .85rem 1rem; border: 1px solid #41414b; border-radius: .75rem; text-decoration: none; }
 .account-history:hover { border-color: var(--accent); }
+.task-delete { margin-top: .55rem; }
+button.account-history { width: 100%; }

@@ -315,3 +315,25 @@ def test_collage_result_is_persisted_and_private(client_factory, db):
     failed = expect(submit(owner, "collage", [left, right], failure="FINALIZE"), 202)
     await_task(owner, failed["id"], "FAILED", "FINALIZE")
     expect_error(owner.request("GET", f"/api/tasks/{failed['id']}/result"), 404)
+
+
+def test_delete_history_and_logout_are_scoped(client_factory, db):
+    owner = client_factory("demo-a")
+    other = client_factory("demo-b")
+    guest = client_factory()
+    left = expect(upload(owner, "collage"), 201)["id"]
+    right = expect(upload(owner, "collage"), 201)["id"]
+    task = expect(submit(owner, "collage", [left, right], delay=300), 202)
+    path = f"/api/tasks/{task['id']}"
+    expect_error(owner.request("DELETE", path), 409)
+    expect_error(other.request("DELETE", path), 404)
+    expect_error(guest.request("DELETE", path), 401)
+    await_task(owner, task["id"], "SUCCEEDED", "FINALIZE")
+    assert owner.request("DELETE", path).status_code == 204
+    expect_error(owner.request("GET", path), 404)
+    expect_error(owner.request("GET", path + "/result"), 404)
+    assert task["id"] not in {item["id"] for item in expect(owner.request("GET", "/api/tasks"), 200)["tasks"]}
+    row, = db("SELECT task_id FROM deleted_tasks WHERE task_id = %s", int(task["id"]))
+    assert row["task_id"] == int(task["id"])
+    assert expect(owner.request("DELETE", "/api/session"), 200) == {"user": None}
+    expect_error(owner.request("GET", "/api/tasks"), 401)

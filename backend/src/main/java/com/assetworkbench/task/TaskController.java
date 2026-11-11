@@ -10,6 +10,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,6 +44,13 @@ class TaskController {
     ResponseEntity<TaskResponse> get(@PathVariable String id, HttpServletRequest request) {
         String ownerId = DemoSessionController.requireUserId(request);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tasks.find(ownerId, taskId(id)));
+    }
+
+    @DeleteMapping("/{id}")
+    ResponseEntity<Void> delete(@PathVariable String id, HttpServletRequest request) {
+        String ownerId = DemoSessionController.requireUserId(request);
+        tasks.delete(ownerId, taskId(id));
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
 
     @GetMapping("/{id}/result")

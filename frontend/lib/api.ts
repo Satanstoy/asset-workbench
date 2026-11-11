@@ -45,6 +45,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       const body = await response.json().catch(() => null);
       throw new ApiError(response.status, body?.error?.message ?? "请求失败，请稍后再试");
     }
+    if (response.status === 204) return undefined as T;
     return await response.json() as T;
   } finally {
     clearTimeout(timer);

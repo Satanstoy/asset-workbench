@@ -8,6 +8,14 @@ import type { Task } from "@/lib/api";
 export type TaskEntry = { task: Task; queryError?: boolean; unavailable?: boolean };
 type ListState = "loading" | "ready" | "error";
 
+function progress(task: Task) {
+  if (task.status === "FAILED" || task.status === "SUCCEEDED") return 4;
+  if (task.stage === "FINALIZE") return 3;
+  if (task.stage === "GENERATE") return 2;
+  if (task.stage === "CHECK_ASSETS") return 1;
+  return 0;
+}
+
 function listPath(templateId?: string) {
   return templateId ? "/api/tasks?" + new URLSearchParams({ templateId }) : "/api/tasks";
 }
@@ -19,23 +27,40 @@ export function useTasks(templateId?: string) {
   const [listState, setListState] = useState<ListState>("loading");
   const currentScope = useRef<AbortController | null>(null);
   const inFlight = useRef(new Set<string>());
+  const loadingList = useRef(false);
+  const deleted = useRef(new Set<string>());
+  const currentEntries = useRef(entries);
+
+  useEffect(() => { currentEntries.current = entries; }, [entries]);
 
   const load = useCallback(async (scope: AbortController) => {
+    if (loadingList.current) return;
+    loadingList.current = true;
+    setListState("loading");
+    const baseline = new Map(currentEntries.current.map((entry) => [entry.task.id, entry]));
     try {
       const { tasks } = await api<{ tasks: Task[] }>(listPath(templateId), { signal: scope.signal });
       if (scope.signal.aborted) return;
+      const deletedIds = deleted.current;
       setEntries((current) => {
-        const combined = new Map(current.map((entry) => [entry.task.id, entry]));
-        for (const task of tasks) {
-          if (!combined.has(task.id)) combined.set(task.id, { task });
-        }
-        return [...combined.values()];
+        const latest = new Map(current.map((entry) => [entry.task.id, entry]));
+        const received = new Set(tasks.map((task) => task.id));
+        return [
+          ...current.filter((entry) => !received.has(entry.task.id) && !baseline.has(entry.task.id)),
+          ...tasks.filter((task) => !deletedIds.has(task.id)).map((task) => {
+            const entry = latest.get(task.id);
+            return entry && entry !== baseline.get(task.id) && progress(entry.task) >= progress(task)
+              ? entry : { task };
+          }),
+        ];
       });
       setListState("ready");
     } catch (error) {
       if (scope.signal.aborted) return;
       if (error instanceof ApiError && error.status === 401) expire(epoch);
       else setListState("error");
+    } finally {
+      if (currentScope.current === scope) loadingList.current = false;
     }
   }, [epoch, expire, templateId]);
 
@@ -50,6 +75,7 @@ export function useTasks(templateId?: string) {
       scope.abort();
       pending.clear();
       currentScope.current = null;
+      loadingList.current = false;
     };
   }, [load]);
 
@@ -76,7 +102,7 @@ export function useTasks(templateId?: string) {
     try {
       const task = await api<Task>("/api/tasks/" + encodeURIComponent(id), { signal: scope.signal });
       if (scope.signal.aborted) return;
-      setEntries((current) => current.map((entry) => entry.task.id === id ? { task } : entry));
+      setEntries((current) => current.map((entry) => entry.task.id === id && progress(task) >= progress(entry.task) ? { task } : entry));
     } catch (error) {
       if (scope.signal.aborted) return;
       if (error instanceof ApiError && error.status === 401) {
@@ -109,9 +135,21 @@ export function useTasks(templateId?: string) {
     add: (task: Task) => setEntries((current) => [{ task }, ...current.filter((entry) => entry.task.id !== task.id)]),
     retry: query,
     reload: () => {
-      if (!currentScope.current) return;
-      setListState("loading");
-      void load(currentScope.current);
+      if (currentScope.current) void load(currentScope.current);
+    },
+    remove: async (id: string) => {
+      const scope = currentScope.current;
+      if (!scope) return;
+      try {
+        await api<void>("/api/tasks/" + encodeURIComponent(id), { method: "DELETE", signal: scope.signal });
+        if (scope.signal.aborted) return;
+        deleted.current.add(id);
+        setEntries((current) => current.filter((entry) => entry.task.id !== id));
+      } catch (error) {
+        if (scope.signal.aborted) return;
+        if (error instanceof ApiError && error.status === 401) expire(epoch);
+        else throw error;
+      }
     },
     reconcile: (id: string) => {
       if (currentScope.current) void reconcile(id, currentScope.current);

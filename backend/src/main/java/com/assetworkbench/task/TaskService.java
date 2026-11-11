@@ -86,6 +86,15 @@ class TaskService {
         return task.response();
     }
 
+    @Transactional
+    public void delete(String ownerId, long id) {
+        TaskResponse task = find(ownerId, id);
+        if (!"SUCCEEDED".equals(task.status()) && !"FAILED".equals(task.status())) {
+            throw new ApiException(HttpStatus.CONFLICT, "TASK_ACTIVE", "等待或处理中的任务不能删除");
+        }
+        mapper.markDeleted(id);
+    }
+
     List<TaskResponse> history(String ownerId, String templateId, boolean activeOnly) {
         return mapper.history(ownerId, templateId, activeOnly).stream().map(TaskRow::response).toList();
     }

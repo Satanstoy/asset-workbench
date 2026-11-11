@@ -47,20 +47,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, []);
 
-  async function choose(id: string) {
+  async function choose(id: string | null) {
     if (selection.current || state.user?.id === id) return;
     selection.current = true;
     const epoch = ++sequence.current;
     setState({ user: null, busy: true, epoch, error: "" });
     try {
-      const { user } = await api<Session>("/api/session", jsonPost({ userId: id }));
+      const { user } = await api<Session>("/api/session",
+        id === null ? { method: "DELETE" } : jsonPost({ userId: id }));
       if (epoch === sequence.current) setState({ user, busy: false, epoch, error: "" });
     } catch {
       const actual = await api<Session>("/api/session").catch(() => null);
       if (epoch === sequence.current) {
         setState({
           user: actual?.user ?? null, busy: false, epoch,
-          error: actual?.user?.id === id ? "" : "暂时无法切换身份，请重试",
+          error: actual && (actual.user?.id ?? null) === id ? "" : "暂时无法更新身份，请重试",
         });
       }
     } finally {
@@ -131,9 +132,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               onClick={() => void choose(`demo-${letter.toLowerCase()}`)}>演示用户 {letter}</button>
           ))}
         </fieldset>
-        {state.user && <Link className="account-history" href="/history" onClick={() => accountDialog.current?.close()}>
-          查看个人历史 <span aria-hidden="true">›</span>
-        </Link>}
+        {state.user && <>
+          <Link className="account-history" href="/history" onClick={() => accountDialog.current?.close()}>
+            查看个人历史 <span aria-hidden="true">›</span>
+          </Link>
+          <button className="account-history" type="button" onClick={() => void choose(null)}>退出演示身份</button>
+        </>}
         {state.error && <p className="error" role="status">{state.error}</p>}
       </dialog>
       {children}

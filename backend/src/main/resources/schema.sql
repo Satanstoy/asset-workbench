@@ -62,3 +62,9 @@ CREATE TABLE IF NOT EXISTS task_inputs (
     CONSTRAINT task_inputs_task_fk FOREIGN KEY (task_id) REFERENCES tasks (id),
     CONSTRAINT task_inputs_asset_fk FOREIGN KEY (asset_id) REFERENCES assets (id)
 );
+
+CREATE TABLE IF NOT EXISTS deleted_tasks (
+    task_id BIGINT PRIMARY KEY,
+    deleted_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT deleted_tasks_task_fk FOREIGN KEY (task_id) REFERENCES tasks (id)
+);
