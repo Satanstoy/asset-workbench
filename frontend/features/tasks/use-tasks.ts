@@ -8,12 +8,8 @@ import type { Task } from "@/lib/api";
 export type TaskEntry = { task: Task; queryError?: boolean; unavailable?: boolean };
 type ListState = "loading" | "ready" | "error";
 
-function listPath(templateId?: string, activeOnly = false) {
-  const params = new URLSearchParams();
-  if (templateId) params.set("templateId", templateId);
-  if (activeOnly) params.set("activeOnly", "true");
-  const query = params.toString();
-  return query ? "/api/tasks?" + query : "/api/tasks";
+function listPath(templateId?: string) {
+  return templateId ? "/api/tasks?" + new URLSearchParams({ templateId }) : "/api/tasks";
 }
 
 export function useTasks(templateId?: string) {
@@ -26,7 +22,7 @@ export function useTasks(templateId?: string) {
 
   const load = useCallback(async (scope: AbortController) => {
     try {
-      const { tasks } = await api<{ tasks: Task[] }>(listPath(templateId, Boolean(templateId)), { signal: scope.signal });
+      const { tasks } = await api<{ tasks: Task[] }>(listPath(templateId), { signal: scope.signal });
       if (scope.signal.aborted) return;
       setEntries((current) => {
         const combined = new Map(current.map((entry) => [entry.task.id, entry]));

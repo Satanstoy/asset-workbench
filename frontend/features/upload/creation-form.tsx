@@ -107,13 +107,17 @@ export function CreationForm({ template, onAccepted }: { template: Template; onA
   }
 
   return (
-    <form className="panel" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-      <h2>上传素材</h2>
+    <form className="creation-form" aria-labelledby="upload-heading" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+      <h2 id="upload-heading">上传素材</h2>
       <div className="upload-grid">
         {slots.map((slot, index) => (
           <div className="upload-slot" key={index}>
-            <label htmlFor={`asset-slot-${index}`}>素材 {index + 1}</label>
-            <input id={`asset-slot-${index}`} type="file" accept={template.acceptedMimeTypes.join(",")}
+            <label className="file-picker" htmlFor={`asset-slot-${index}`}>
+              <span className="file-picker-symbol" aria-hidden="true">{slot ? "↥" : "+"}</span>
+              <span>素材 {index + 1}</span>
+              <small aria-hidden="true">{slot ? "替换图片" : "点击上传图片"}</small>
+            </label>
+            <input id={`asset-slot-${index}`} type="file" aria-label={`素材 ${index + 1}`} accept={template.acceptedMimeTypes.join(",")}
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
                 event.currentTarget.value = "";
@@ -138,6 +142,7 @@ export function CreationForm({ template, onAccepted }: { template: Template; onA
           </div>
         ))}
       </div>
+      <p className="simulation-note">模拟制作完成后展示模板示例图</p>
       <button className="primary" disabled={!ready || submitting} type="submit">
         {submitting ? "提交中…" : "开始制作"}
       </button>

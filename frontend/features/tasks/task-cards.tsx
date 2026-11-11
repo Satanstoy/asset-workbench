@@ -35,20 +35,27 @@ export function TaskCards({ entries, retry, reconcile }: {
     <div className="task-grid">
       {entries.map(({ task, queryError, unavailable }) => (
         <article className="task-card" aria-label={`任务 ${task.id}`} key={task.id}>
+          <div className="task-display">
+            {task.status === "SUCCEEDED" && task.resultUrl ? (
+              <ResultPreview key={task.resultUrl} src={task.resultUrl} />
+            ) : (
+              <div className="task-state">
+                <span className={`status status-${task.status.toLowerCase()}`}>{statuses[task.status]}</span>
+                {task.failure && <p className="error">{task.failure.message}</p>}
+              </div>
+            )}
+          </div>
           <div className="task-card-heading">
             <h3>{task.templateTitle}</h3>
-            <span className={`status status-${task.status.toLowerCase()}`}>{statuses[task.status]}</span>
+            {task.status === "SUCCEEDED" && <span className="status status-succeeded">成功</span>}
           </div>
           <p className="task-meta">任务 #{task.id} · <time dateTime={task.createdAt}>
             {new Date(task.createdAt).toLocaleString("zh-CN")}
           </time></p>
-          {task.stage && <p>制作阶段 · {stages[task.stage]}</p>}
-          {task.failure && <p className="notice error">{task.failure.message}</p>}
+          {task.stage && <p className="task-meta">制作阶段 · {stages[task.stage]}</p>}
+          {task.status === "SUCCEEDED" && <p className="subtle">模拟制作 · 示例结果</p>}
           {queryError && <p className="notice">暂时无法更新进度 <button type="button" onClick={() => retry(task.id)}>立即重试</button></p>}
           {unavailable && <p className="notice">任务暂时不可查 <button type="button" onClick={() => reconcile(task.id)}>重新核对</button></p>}
-          {task.status === "SUCCEEDED" && task.resultUrl && (
-            <div><p className="subtle">模拟制作</p><ResultPreview key={task.resultUrl} src={task.resultUrl} /></div>
-          )}
         </article>
       ))}
     </div>

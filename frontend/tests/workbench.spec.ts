@@ -6,7 +6,13 @@ const image = (name = "photo.png") => ({ name, mimeType: "image/png", buffer: pn
 const slot = (page: Page, number: number) => page.getByLabel(`素材 ${number}`, { exact: true });
 const card = (page: Page, id: string) => page.getByRole("article", { name: `任务 ${id}` });
 const start = (page: Page) => page.getByRole("button", { name: "开始制作" });
-const enter = (page: Page, identity: "A" | "B") => page.getByRole("button", { name: `演示用户 ${identity}` }).click();
+const enter = async (page: Page, identity: "A" | "B") => {
+  await page.getByRole("button", { name: "账户设置" }).click();
+  const dialog = page.getByRole("dialog", { name: "账户设置" });
+  await dialog.getByRole("button", { name: `演示用户 ${identity}` }).click();
+  await expect(dialog).toContainText(`当前：演示用户 ${identity}`);
+  await dialog.getByRole("button", { name: "关闭账户设置" }).click();
+};
 
 test("分类写入 URL，刷新、返回详情及错误状态均可恢复", async ({ page, context }) => {
   const mock = await mockApi(context);
@@ -201,9 +207,15 @@ test("小屏和键盘能够访问身份、模板及上传控件", async ({ page,
   await mockApi(context);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/templates/collage");
-  const identity = page.getByRole("button", { name: "演示用户 A" });
-  await identity.focus();
+  const settings = page.getByRole("button", { name: "账户设置" });
+  const dialog = page.getByRole("dialog", { name: "账户设置" });
+  await settings.focus();
   await page.keyboard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(settings).toBeFocused();
+  await enter(page, "A");
   await expect(slot(page, 1)).toBeVisible();
   await expect(slot(page, 2)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -230,4 +242,21 @@ test("个人历史加载失败可重试，离开页面后停止跟踪", async ({
   const reads = mock.taskReads.get("active");
   await page.clock.runFor(4500);
   expect(mock.taskReads.get("active")).toBe(reads);
+});
+
+test("桌面制作区和任务区并排，小屏按操作顺序排列", async ({ page, context }) => {
+  await mockApi(context);
+  await page.goto("/templates/collage");
+  await enter(page, "A");
+  const upload = page.getByRole("form", { name: "上传素材" });
+  const tasks = page.getByRole("region", { name: "制作任务" });
+  await expect(upload).toBeVisible();
+  await expect(tasks).toBeVisible();
+  const desktopUpload = (await upload.boundingBox())!;
+  const desktopTasks = (await tasks.boundingBox())!;
+  expect(desktopTasks.x).toBeGreaterThanOrEqual(desktopUpload.x + desktopUpload.width);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileUpload = (await upload.boundingBox())!;
+  const mobileTasks = (await tasks.boundingBox())!;
+  expect(mobileTasks.y).toBeGreaterThanOrEqual(mobileUpload.y + mobileUpload.height);
 });

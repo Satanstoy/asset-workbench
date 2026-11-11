@@ -15,11 +15,15 @@ function Records() {
 }
 
 export function History() {
-  const { busy, user, epoch } = useIdentity();
+  const { busy, user, epoch, openAccount } = useIdentity();
   return <>
-    <section className="intro"><span className="eyebrow">工作台 / 记录</span><h1>个人历史</h1>
-      <p>查看已受理的制作任务、制作阶段和结果。</p></section>
+    <div className="section-heading"><h1>个人历史</h1>{user && !busy && <span className="subtle">{user.displayName}</span>}</div>
     {busy ? <p className="notice">正在确认演示身份…</p>
-      : user ? <Records key={epoch} /> : <p className="notice">请选择演示身份后查看个人历史</p>}
+      : user ? <Records key={epoch} /> : (
+        <div className="notice">
+          <p>请选择演示身份后查看个人历史</p>
+          <button type="button" onClick={openAccount}>选择演示身份</button>
+        </div>
+      )}
   </>;
 }

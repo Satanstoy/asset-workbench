@@ -14,8 +14,7 @@ export function TemplateList({ category }: { category?: string }) {
   const query = categoryQuery(category);
   const { resource, retry } = useResource<TemplateData>("/api/templates" + query);
   return <>
-    <section className="intro"><span className="eyebrow">工作台 / 浏览</span><h1>模板列表</h1>
-      <p>选择模板，上传你的图片，然后在工作台跟踪制作进度。</p></section>
+    <h1 className="visually-hidden">模板列表</h1>
     {resource.status === "loading" && <p className="notice" role="status">正在加载模板…</p>}
     {resource.status === "error" && <p className="notice error">
       {errorMessage(resource.error, "模板加载失败")} <button type="button" onClick={retry}>重试</button>
@@ -35,9 +34,7 @@ export function TemplateList({ category }: { category?: string }) {
           <Link className="template-card" key={template.id} href={`/templates/${encodeURIComponent(template.id)}${query}`}>
             <Image className="template-image" src={template.coverUrl} alt="" width={640} height={400} unoptimized />
             <div className="template-copy">
-              <span className="eyebrow">{template.category} · {template.requiredImageCount} 张图片</span>
               <h2>{template.title}</h2>
-              <p>{template.description}</p>
             </div>
           </Link>
         ))}
